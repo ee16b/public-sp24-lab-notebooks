@@ -1,0 +1,39 @@
+name: Generate Lab Script
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - lab**
+
+jobs:
+  convert_lab_zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Get lab directory
+        id: file
+        run: echo 'f="$(git diff  --no-renames --name-only ${{ github.event.before }} ${{ github.sha }} | sed 's%/[^/]*$%/%' | cut -d/ -f1 | sort -u | grep "lab*_*")"' >> $GITHUB_OUTPUT
+      - name: Generate Zip
+        id: zip_gen
+        run: >
+          echo ${{ steps.file.outputs.f }} | while read lab_name; do
+            if [[ -d $lab_name ]] ; then
+              echo $lab_name
+              mkdir -p zip && pushd $lab_name && rm -rf ../zip/$lab_name.zip && zip -FSr ../zip/$lab_name.zip . && popd
+            fi
+          done
+      - name: Commit Changes
+        run: |
+          git config --local user.email "eecs16b-git@berkeley.edu"
+          git config --local user.name "EECS 16B Lab Staff - Zip Script"
+          git add -A :/
+          git commit -m "Zip for lab"
+      - name: Push changes # push the output folder to your repo
+        uses: ad-m/github-push-action@master
+        with:
+          branch: ${{ github.ref }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          force: true
